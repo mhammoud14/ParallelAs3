@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+#include <chrono>
 
 #define TILE_WIDTH 16
 
@@ -11,23 +12,6 @@ void basicMatrixMultiplication(float *A, float *B, float *C, int m, int n, int k
                 sum += A[i * n + l] * B[l * k + j];
             }
             C[i * k + j] = sum;
-        }
-    }
-}
-
-void tiledMatrixMultiplication(float *A, float *B, float *C, int m, int n, int k) {
-    #pragma acc parallel loop collapse(2) present(A[0:m*n], B[0:n*k], C[0:m*k])
-    for (int i = 0; i < m; i += TILE_WIDTH) {
-        for (int j = 0; j < k; j += TILE_WIDTH) {
-            for (int ii = i; ii < i + TILE_WIDTH; ++ii) {
-                for (int jj = j; jj < j + TILE_WIDTH; ++jj) {
-                    float sum = 0.0f;
-                    for (int l = 0; l < n; ++l) {
-                        sum += A[ii * n + l] * B[l * k + jj];
-                    }
-                    C[ii * k + jj] = sum;
-                }
-            }
         }
     }
 }
@@ -50,11 +34,12 @@ int main() {
         B[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
     }
 
-    // Basic matrix multiplication
+    // Timing for basic matrix multiplication
+    auto start_basic = std::chrono::steady_clock::now();
     basicMatrixMultiplication(A, B, C_basic, m, n, k);
-
-    // Tiled matrix multiplication
-    tiledMatrixMultiplication(A, B, C_tiled, m, n, k);
+    auto end_basic = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_basic = end_basic - start_basic;
+    std::cout << "Basic multiplication time: " << elapsed_basic.count() << " seconds\n";
 
     // Verify results (optional)
     bool error = false;
