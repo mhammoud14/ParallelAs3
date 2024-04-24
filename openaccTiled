@@ -1,0 +1,45 @@
+program matrix_mul_tiled_openacc
+    implicit none
+    double precision :: start_time, end_time
+    integer :: i, j, l, ii, jj, ll
+    integer, parameter :: m = 1024
+    integer, parameter :: n = 1024
+    integer, parameter :: k = 1024
+    integer, parameter :: tile_width = 16
+    
+    real :: a(m, n), b(n, k), c(m, k)
+    
+    ! Initialize matrices
+    ! ...
+    
+    start_time = omp_get_wtime()
+    
+    ! Compute matrix multiplication using tiling
+    !$acc parallel loop collapse(2) present(a, b, c)
+    do ii = 1, m, tile_width
+        do jj = 1, k, tile_width
+            do ll = 1, n
+                do i = ii, min(ii+tile_width-1, m)
+                    do j = jj, min(jj+tile_width-1, k)
+                        c(i, j) = 0.0
+                    end do
+                end do
+                
+                do i = ii, min(ii+tile_width-1, m)
+                    do j = jj, min(jj+tile_width-1, k)
+                        do l = 1, n
+                            c(i, j) = c(i, j) + a(i, l) * b(l, j)
+                        end do
+                    end do
+                end do
+            end do
+        end do
+    end do
+    
+    end_time = omp_get_wtime()
+    print *, "Time taken: ", end_time - start_time, " seconds"
+    
+    ! Print or use result
+    ! ...
+    
+end program matrix_mul_tiled_openacc
