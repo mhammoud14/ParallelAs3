@@ -1,0 +1,71 @@
+#include <stdio.h>
+
+#define TILE_WIDTH 16
+
+__global__ void matrixMul(float *a, float *b, float *c, int m, int n, int k) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < m && col < k) {
+        float sum = 0.0f;
+        for (int i = 0; i < n; ++i) {
+            sum += a[row * n + i] * b[i * k + col];
+        }
+        c[row * k + col] = sum;
+    }
+}
+
+int main() {
+    int m = 1024;
+    int n = 1024;
+    int k = 1024;
+
+    float *a, *b, *c;
+    float *d_a, *d_b, *d_c;
+
+    size_t size_a = m * n * sizeof(float);
+    size_t size_b = n * k * sizeof(float);
+    size_t size_c = m * k * sizeof(float);
+
+    a = (float*)malloc(size_a);
+    b = (float*)malloc(size_b);
+    c = (float*)malloc(size_c);
+
+    cudaMalloc(&d_a, size_a);
+    cudaMalloc(&d_b, size_b);
+    cudaMalloc(&d_c, size_c);
+
+    // Initialize matrices
+    // ...
+
+    cudaMemcpy(d_a, a, size_a, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, b, size_b, cudaMemcpyHostToDevice);
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start);
+
+    dim3 blockDim(TILE_WIDTH, TILE_WIDTH);
+    dim3 gridDim((k + TILE_WIDTH - 1) / TILE_WIDTH, (m + TILE_WIDTH - 1) / TILE_WIDTH);
+
+    matrixMul<<<gridDim, blockDim>>>(d_a, d_b, d_c, m, n, k);
+
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("Time taken: %f milliseconds\n", milliseconds);
+
+    cudaMemcpy(c, d_c, size_c, cudaMemcpyDeviceToHost);
+
+    // Free memory
+    free(a);
+    free(b);
+    free(c);
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+
+    return 0;
+}
