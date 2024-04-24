@@ -1,45 +1,70 @@
-program matrix_mul_tiled_openacc
-    implicit none
-    double precision :: start_time, end_time
-    integer :: i, j, l, ii, jj, ll
-    integer, parameter :: m = 1024
-    integer, parameter :: n = 1024
-    integer, parameter :: k = 1024
-    integer, parameter :: tile_width = 16
-    
-    real :: a(m, n), b(n, k), c(m, k)
-    
-    ! Initialize matrices
-    ! ...
-    
-    start_time = omp_get_wtime()
-    
-    ! Compute matrix multiplication using tiling
-    !$acc parallel loop collapse(2) present(a, b, c)
-    do ii = 1, m, tile_width
-        do jj = 1, k, tile_width
-            do ll = 1, n
-                do i = ii, min(ii+tile_width-1, m)
-                    do j = jj, min(jj+tile_width-1, k)
-                        c(i, j) = 0.0
-                    end do
-                end do
-                
-                do i = ii, min(ii+tile_width-1, m)
-                    do j = jj, min(jj+tile_width-1, k)
-                        do l = 1, n
-                            c(i, j) = c(i, j) + a(i, l) * b(l, j)
-                        end do
-                    end do
-                end do
-            end do
-        end do
-    end do
-    
-    end_time = omp_get_wtime()
-    print *, "Time taken: ", end_time - start_time, " seconds"
-    
-    ! Print or use result
-    ! ...
-    
-end program matrix_mul_tiled_openacc
+#include <iostream>
+#include <cstdlib>
+#include <chrono>
+
+#define TILE_WIDTH 16
+
+void tiledMatrixMultiplication(float *A, float *B, float *C, int m, int n, int k) {
+    #pragma acc parallel loop collapse(2) present(A[0:m*n], B[0:n*k], C[0:m*k])
+    for (int i = 0; i < m; i += TILE_WIDTH) {
+        for (int j = 0; j < k; j += TILE_WIDTH) {
+            for (int ii = i; ii < i + TILE_WIDTH; ++ii) {
+                for (int jj = j; jj < j + TILE_WIDTH; ++jj) {
+                    float sum = 0.0f;
+                    for (int l = 0; l < n; ++l) {
+                        sum += A[ii * n + l] * B[l * k + jj];
+                    }
+                    C[ii * k + jj] = sum;
+                }
+            }
+        }
+    }
+}
+
+int main() {
+    int m = 1024;
+    int n = 1024;
+    int k = 1024;
+
+    float *A = new float[m * n];
+    float *B = new float[n * k];
+    float *C_basic = new float[m * k];
+    float *C_tiled = new float[m * k];
+
+    // Initialize matrices A and B
+    for (int i = 0; i < m * n; ++i) {
+        A[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+    }
+    for (int i = 0; i < n * k; ++i) {
+        B[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+    }
+
+    // Timing for tiled matrix multiplication
+    auto start_tiled = std::chrono::steady_clock::now();
+    tiledMatrixMultiplication(A, B, C_tiled, m, n, k);
+    auto end_tiled = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_tiled = end_tiled - start_tiled;
+    std::cout << "Tiled multiplication time: " << elapsed_tiled.count() << " seconds\n";
+
+    // Verify results (optional)
+    bool error = false;
+    for (int i = 0; i < m * k; ++i) {
+        if (C_basic[i] != C_tiled[i]) {
+            error = true;
+            break;
+        }
+    }
+
+    if (error) {
+        std::cout << "Error: Results mismatch\n";
+    } else {
+        std::cout << "Results matched\n";
+    }
+
+    delete[] A;
+    delete[] B;
+    delete[] C_basic;
+    delete[] C_tiled;
+
+    return 0;
+}
